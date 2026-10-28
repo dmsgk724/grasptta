@@ -45,4 +45,4 @@ spec:
     - |-
       set -eo pipefail
       source /python/.venv/bin/activate
-      bash /workspace/users/dmsgk724/dexgys_baseline/graspcvae/kubeflow/run_eval_metrics.sh
+      bash /workspace/users/dmsgk724/dexgys_baseline_work/graspcvae/kubeflow/run_eval_metrics.sh

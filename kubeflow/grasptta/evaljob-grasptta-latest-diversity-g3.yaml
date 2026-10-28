@@ -28,7 +28,7 @@ spec:
       - "-lc"
       - |-
         set -euo pipefail
-        cd /workspace/users/dmsgk724/dexgys_baseline/graspcvae
+        cd /workspace/users/dmsgk724/dexgys_baseline_work/graspcvae
         bash kubeflow/run_tta_diversity.sh
   podTemplateOverrides:
     - targetJobs: [{name: node}]

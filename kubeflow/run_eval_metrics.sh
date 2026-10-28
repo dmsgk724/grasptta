@@ -12,7 +12,7 @@
 #       -> chamfer / q1 / fid -> metrics.json next to each predictions.json
 # Usage: VARIANTS="best latest" SAVE_ROOT=./Experiments/graspcvae NAME=graspcvae bash kubeflow/run_eval_metrics.sh
 set -eo pipefail
-ROOT=/workspace/users/dmsgk724/dexgys_baseline/graspcvae
+ROOT=/workspace/users/dmsgk724/dexgys_baseline_work/graspcvae
 SAVE_ROOT=${SAVE_ROOT:-./Experiments/graspcvae}
 NAME=${NAME:-graspcvae}
 VARIANTS=${VARIANTS:-"best latest"}

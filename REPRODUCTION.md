@@ -83,7 +83,7 @@ bash benchmark/dexgys/setup_isaacgym.sh && source .venv-isaacgym/bin/activate   
 python benchmark/dexgys/success_rate.py --pred-path $PRED --data-path $DATA --no_force --gpu 0 --parallel 8
 ```
 Prediction file of the reported run (cholab PVC):
-`/workspace/users/dmsgk724/dexgys_baseline/graspcvae/Experiments/eval/grasptta_latest/dexter309/predictions.json`
+`/workspace/users/dmsgk724/dexgys_baseline_work/graspcvae/Experiments/eval/grasptta_latest/dexter309/predictions.json`
 
 ### 5. Diversity (δt, δr, δq)
 
@@ -106,7 +106,7 @@ python train.py -t ./config/contactnet.yaml
 200 epochs of GraspCVAE take ~13 h on one GPU.
 
 Kubeflow manifests of the reported runs (job names end with `-eunha`; they run from the cholab PVC working copy
-`dexgys_baseline/graspcvae`): `kubeflow/graspcvae/` (GraspCVAE train + eval), `kubeflow/grasptta/trainjob-contactnet.yaml`,
+`dexgys_baseline_work/graspcvae`): `kubeflow/graspcvae/` (GraspCVAE train + eval), `kubeflow/grasptta/trainjob-contactnet.yaml`,
 `kubeflow/grasptta/evaljob-grasptta-latest-*.yaml` (TTA samplings g1–g4, merge, metrics).
 
 ## How it was built

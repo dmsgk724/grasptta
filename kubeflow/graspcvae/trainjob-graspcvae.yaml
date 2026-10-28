@@ -31,7 +31,7 @@ spec:
       - |-
         set -euo pipefail
         nvidia-smi -L || true
-        cd /workspace/users/dmsgk724/dexgys_baseline/graspcvae
+        cd /workspace/users/dmsgk724/dexgys_baseline_work/graspcvae
         trap 'chown -R 1000:100 Experiments 2>/dev/null || true' EXIT
 
         echo "=== train ($(date '+%F %T')) ==="
