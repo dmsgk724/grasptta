@@ -1,0 +1,62 @@
+# ContactNet of GraspTTA, trained on DexGYSNet ground truth (GraspTTA paper Sec 3.2).
+# Optimization follows GraspTTA Sec 4.1: Adam lr 1e-4, 100 epochs, lr halved at 30/60/80/90, batch 128.
+device: &device cuda:0
+rotation_type: &rotation_type euler
+
+ncols: 120
+epochs: &epochs 100
+print_freq: 100
+validate_freq: 1
+save_root: ./Experiments/contactnet
+save_top_n: 3
+log_dir: logs
+seed: 3407
+norm_type: &norm_type minmax11
+guidance_type: &guidance_type "fine"
+frozen_clip: False # no language encoder
+
+data:
+  name: task_pose
+  train:
+    data_root: &data_root "./data/oakink"
+    pose_path: "./data/dexgys/train.json"
+    sample_in_pose: True
+    num_obj_points: &num_obj_points 3000 # GraspTTA resample_obj_xyz
+    guidance_type: *guidance_type
+    rotation_type: *rotation_type
+    norm_type: *norm_type
+    batch_size: 128
+    num_workers: 8
+
+  val:
+    data_root: *data_root
+    pose_path: "./data/dexgys/test.json"
+    sample_in_pose: True # one GT grasp per sample: ContactNet is supervised per grasp
+    num_obj_points: *num_obj_points
+    guidance_type: *guidance_type
+    rotation_type: *rotation_type
+    norm_type: *norm_type
+    batch_size: 128
+    num_workers: 8
+
+model:
+  name: ContactNet
+  device: *device
+  n_obj_points: *num_obj_points
+  hand_model:
+    mjcf_path: ./data/mjcf/shadow_hand.xml
+    mesh_path: ./data/mjcf/meshes
+    n_surface_points: 1024 # replaces the 778 MANO vertices
+    contact_points_path: ./data/mjcf/contact_points.json
+    penetration_points_path: ./data/mjcf/penetration_points.json
+    fingertip_points_path: ./data/mjcf/fingertip.json
+
+optimizer:
+  name: adam
+  lr: 1.0e-4
+  weight_decay: 0.0
+
+scheduler:
+  name: multistep
+  milestones: [30, 60, 80, 90]
+  gamma: 0.5

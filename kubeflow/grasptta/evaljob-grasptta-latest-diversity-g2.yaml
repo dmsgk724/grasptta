@@ -1,0 +1,42 @@
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: TrainJob
+metadata:
+  # GraspTTA (from GraspCVAE beta=10 LATEST) diversity, sampling part g2: TTA with seeds 3407+s for s in "2 3"
+  # (kubeflow/run_tta_diversity.sh MODE=sample). Merge with kubeflow/grasptta/evaljob-grasptta-latest-diversity-merge.yaml; s0 is also the full-test-set run.
+  name: gys-eval-grasptta-latest-div-g2-eunha
+  namespace: kbm-g-np-postech-a
+spec:
+  runtimeRef:
+    apiGroup: trainer.kubeflow.org
+    kind: TrainingRuntime
+    name: pointgrasp
+  trainer:
+    image: postech-a.kr-central-2.kcr.dev/dmsgk724/grasp-as-you-say:latest
+    numNodes: 1
+    numProcPerNode: 1
+    resourcesPerNode:
+      limits: {cpu: "2", memory: 64Gi, nvidia.com/gpu: "1"}
+    env:
+      - {name: PYTHONUNBUFFERED, value: "1"}
+      - {name: MODE, value: "sample"}
+      - {name: SEEDS, value: "2 3"}
+      - {name: NAME, value: "grasptta_latest"}
+      - {name: CVAE_CKPT, value: "./Experiments/graspcvae_kl10/epoch200_minus_loss_-5.0587_latest.pth"}
+      - {name: REF, value: "./Experiments/grasptta/none"}
+    command: [/bin/bash]
+    args:
+      - "-lc"
+      - |-
+        set -euo pipefail
+        cd /workspace/users/dmsgk724/dexgys_baseline/graspcvae
+        bash kubeflow/run_tta_diversity.sh
+  podTemplateOverrides:
+    - targetJobs: [{name: node}]
+      metadata: {annotations: {sidecar.istio.io/inject: "false"}}
+      spec:
+        containers:
+          - name: node
+            volumeMounts: [{mountPath: /workspace, name: workspace}, {mountPath: /dev/shm, name: dshm}]
+        volumes:
+          - {name: workspace, persistentVolumeClaim: {claimName: cholab}}
+          - {name: dshm, emptyDir: {medium: Memory, sizeLimit: 16Gi}}

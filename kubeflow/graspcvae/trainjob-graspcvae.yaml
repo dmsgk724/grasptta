@@ -1,0 +1,68 @@
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: TrainJob
+metadata:
+  # KL SWEEP (kl=10.0): GraspCVAE baseline on DexGYSNet (config/graspcvae.yaml), then test.py on the
+  # best (highest -val_loss) and latest checkpoints -> Experiments/graspcvae/test_{best,latest}.
+  # Extra config overrides as "key value" pairs via EXTRA_OVERRIDES (appended to the same
+  # --override; a second --override flag would replace the first), e.g. for the KL ablation:
+  #   SAVE_ROOT=./Experiments/graspcvae_nokl  EXTRA_OVERRIDES="model.criterion.loss_weights.kl 0.0"
+  name: gys-graspcvae-kl10-eunha
+  namespace: kbm-g-np-postech-a
+spec:
+  runtimeRef:
+    apiGroup: trainer.kubeflow.org
+    kind: TrainingRuntime
+    name: pointgrasp
+  trainer:
+    image: postech-a.kr-central-2.kcr.dev/dmsgk724/grasp-as-you-say:latest
+    numNodes: 1
+    numProcPerNode: 1
+    resourcesPerNode:
+      limits: {cpu: "8", memory: 64Gi, nvidia.com/gpu: "1"}
+    env:
+      - {name: PYTHONUNBUFFERED, value: "1"}
+      - {name: WANDB_API_KEY, valueFrom: {secretKeyRef: {name: wandb-secret-eunha, key: api-key}}}
+      - {name: WANDB_PROJECT, value: "grasp-as-you-say"}
+      - {name: SAVE_ROOT, value: "./Experiments/graspcvae_kl10"}
+      - {name: EXTRA_OVERRIDES, value: "model.criterion.loss_weights.kl 10.0"}
+    command: [/bin/bash]
+    args:
+      - "-lc"
+      - |-
+        set -euo pipefail
+        nvidia-smi -L || true
+        cd /workspace/users/dmsgk724/dexgys_baseline/graspcvae
+        trap 'chown -R 1000:100 Experiments 2>/dev/null || true' EXIT
+
+        echo "=== train ($(date '+%F %T')) ==="
+        python train.py -t ./config/graspcvae.yaml --override save_root "'$SAVE_ROOT'" $EXTRA_OVERRIDES
+
+        for WHICH in best latest; do
+          CKPT=$(python - "$SAVE_ROOT" "$WHICH" <<'PY'
+        import glob, re, sys
+        root, which = sys.argv[1:]
+        if which == "latest":
+            (c,) = glob.glob(f"{root}/epoch*_minus_loss_*_latest.pth")
+            print(c)
+        else:
+            cands = [(float(m.group(1)), p) for p in glob.glob(f"{root}/epoch*_minus_loss_*_.pth")
+                     if (m := re.search(r"_minus_loss_(-?[\d.]+)_\.pth$", p))]
+            print(max(cands)[1])
+        PY
+          )
+          echo "=== test [$WHICH] $CKPT ($(date '+%F %T')) ==="
+          rm -rf "$SAVE_ROOT/test_$WHICH"
+          python ./test.py --train_cfg ./config/graspcvae.yaml --test_cfg ./config/infer_graspcvae_test.yaml \
+            --override model.checkpoint_path "'$CKPT'" save_root "'$SAVE_ROOT/test_$WHICH'" $EXTRA_OVERRIDES < /dev/null
+        done
+        echo "=== DONE ==="
+  podTemplateOverrides:
+    - targetJobs: [{name: node}]
+      metadata: {annotations: {sidecar.istio.io/inject: "false"}}
+      spec:
+        containers:
+          - name: node
+            volumeMounts: [{mountPath: /workspace, name: workspace}, {mountPath: /dev/shm, name: dshm}]
+        volumes:
+          - {name: workspace, persistentVolumeClaim: {claimName: cholab}}
+          - {name: dshm, emptyDir: {medium: Memory, sizeLimit: 32Gi}}

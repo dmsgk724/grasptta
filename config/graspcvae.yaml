@@ -1,0 +1,140 @@
+device: &device cuda:0
+rotation_type: &rotation_type euler
+rotation_dim: &rotation_dim 3
+
+ncols: 120
+epochs: &epochs 200 # same as our IDGC run (Grasp-as-You-Say config/idgc.yaml)
+print_freq: 500
+validate_freq: 5
+save_root: ./Experiments/graspcvae
+save_top_n: 20
+log_dir: logs
+seed: 3407
+norm_type: &norm_type minmax11
+guidance_type: &guidance_type "fine" # fine
+frozen_clip: True
+
+data:
+  name: task_pose
+  train:
+    data_root: &data_root "./data/oakink"
+    pose_path: "./data/dexgys/train.json"
+    num_rotation_aug: &num_rotation_aug 1
+    num_equivalent_aug: &num_equivalent_aug 1
+    sample_in_pose: &sample_in_pose True
+    guidance_type: *guidance_type
+    rotation_type: *rotation_type
+    norm_type: *norm_type
+    batch_size: 48 # same as our IDGC run
+    num_workers: 4
+
+  val:
+    data_root: *data_root
+    pose_path: "./data/dexgys/test.json"
+    num_rotation_aug: 1
+    sample_in_pose: False
+    guidance_type: *guidance_type
+    rotation_type: *rotation_type
+    norm_type: *norm_type
+    batch_size: 48
+    num_workers: 4
+
+model:
+  name: GraspCVAE
+  device: *device
+  rotation_type: *rotation_type
+  d_x: 28 # trans(3) + qpos(22) + euler(3)
+  encoder_input: hand_pc # hand_pc (GraspTTA: hand points -> point encoder) | pose (28-d normalized pose)
+
+  cvae: # GraspTTA affordanceNet: encoder [1024, 512, 256], latent 64, decoder [1024, 256, out]
+    latent_size: 64
+    encoder_hidden_sizes: [512, 256] # input dim (hand feature) is prepended automatically
+    decoder_hidden_sizes: [1024, 256] # output dim (d_x) is appended automatically
+
+  language_encoder: # same as IDGC
+    name: clip_sd
+    version: 'ViT-L/14'
+    use_pre: False
+    use_adapter: True
+    dim_in: 768
+    dim_out: 512
+    reduction: 1
+    device: *device
+
+  backbone: # object encoder, same as IDGC (config/idgc.yaml)
+    name: pointnet2
+    use_pooling: False
+    layer1:
+      npoint: 1024
+      radius_list: [0.02]
+      nsample_list: [64]
+      mlp_list: [0, 64, 128]
+    layer2:
+      npoint: 256
+      radius_list: [0.05]
+      nsample_list: [32]
+      mlp_list: [128, 256, 256]
+    layer3:
+      npoint: 64
+      radius_list: [0.1]
+      nsample_list: [16]
+      mlp_list: [256, 512, 512]
+    use_xyz: true
+    normalize_xyz: true
+
+  hand_backbone: # hand encoder, same as QGC (config/qgc.yaml); used only when encoder_input == hand_pc
+    name: pointnet2
+    use_pooling: False
+    layer1:
+      npoint: 1024
+      radius_list: [0.02]
+      nsample_list: [64]
+      mlp_list: [0, 64, 128]
+    layer2:
+      npoint: 128
+      radius_list: [0.04]
+      nsample_list: [16]
+      mlp_list: [128, 256, 256]
+    layer3:
+      npoint: 16
+      radius_list: [0.08]
+      nsample_list: [4]
+      mlp_list: [256, 512, 512]
+    use_xyz: true
+    normalize_xyz: true
+
+  criterion:
+    hand_model:
+      mjcf_path: ./data/mjcf/shadow_hand.xml
+      mesh_path: ./data/mjcf/meshes
+      n_surface_points: 1024
+      contact_points_path: ./data/mjcf/contact_points.json
+      penetration_points_path: ./data/mjcf/penetration_points.json
+      fingertip_points_path: ./data/mjcf/fingertip.json
+    loss_weights: # Eq.5 weights (paper Sec 5.2 / config/qgc.yaml) + KL; a weight of 0 disables the term
+      para: 10.0
+      hand_chamfer: 1.0
+      obj_penetration: 100.0
+      self_penetration: 10.0
+      cmap: 10.0
+      kl: 0.01 # not reported by the paper or GraspTTA; tune
+
+    cost_weights:
+      hand_mesh: 0.0
+      qpos: 1.0
+      translation: 2.0
+      rotation: 2.0
+    device: *device
+    rotation_type: *rotation_type
+    norm_type: *norm_type
+
+
+optimizer: # same as our IDGC run (paper Sec 5.2 reports lr 2e-4 -> 2e-5, wd 5e-6, batch 64)
+  name: adam
+  lr: 1.0e-4
+  weight_decay: 1.0e-4
+
+scheduler:
+  name: cosine
+  t_max: *epochs
+  min_lr: 1.0e-5

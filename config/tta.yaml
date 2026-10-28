@@ -1,0 +1,19 @@
+# GraspTTA test-time adaptation (tta.py). Defaults = GraspTTA's released code
+# (gen_diverse_grasp_ho3d.py / utils/loss.py TTT_loss); loss scales are in MANO units and need tuning.
+save_root: ./Experiments/grasptta
+tta:
+  contactnet_cfg: ./config/contactnet.yaml
+  contactnet_ckpt: ./Experiments/contactnet/epoch100_minus_loss_-0.0032_latest.pth
+  n_obj_points: 3000
+  iters: 300
+  lr: 6.25e-6
+  momentum: 0.8
+  weights: {contact: 1.0, consistency: 1.0, penetration: 7.0}
+  scales: {contact: 7500.0, consistency: 1.0e-4, penetration: 120.0}   # 2.5 * 3000 | 1e-4 | 120
+  contact_thresh: 0.02   # m: object points this close to the hand count as possible contacts
+  clamp_joints: true
+  log_every: 25
+  save_traj: true   # keep the first batch's pose every log_every steps (tta_traj.npz)
+data:
+  test:
+    batch_size: 64

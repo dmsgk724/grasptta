@@ -1,0 +1,48 @@
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: TrainJob
+metadata:
+  # Computational metrics (CD, contact map, Q1, penetration, max<5mm, P-FID) of the GraspCVAE baseline
+  # (best + latest checkpoints), scored with dexter_temp's DexGYS benchmark exactly like our DexGYS
+  # reproduction. Logic: kubeflow/run_eval_metrics.sh
+  # -> Experiments/eval/graspcvae_{best,latest}/{dexter309,all}/metrics.json
+  name: gys-eval-graspcvae-kl10-metrics-eunha
+  namespace: kbm-g-np-postech-a
+spec:
+  runtimeRef:
+    apiGroup: trainer.kubeflow.org
+    kind: TrainingRuntime
+    name: dexter-runtime
+  podTemplateOverrides:
+  - targetJobs:
+    - name: node
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      containers:
+      - name: node
+        volumeMounts:
+        - {mountPath: /workspace, name: workspace}
+        - {mountPath: /dev/shm, name: dshm}
+      volumes:
+      - {name: workspace, persistentVolumeClaim: {claimName: cholab}}
+      - {name: dshm, emptyDir: {medium: Memory, sizeLimit: 64Gi}}
+  trainer:
+    image: postech-a.kr-central-2.kcr.dev/dmsgk724/dexter:87c1e1d
+    numNodes: 1
+    numProcPerNode: 1
+    resourcesPerNode:
+      limits: {cpu: "16", memory: 128Gi, nvidia.com/gpu: "1"}
+    env:
+    - {name: HF_HOME, value: /workspace/users/dmsgk724/hf_cache}
+    - {name: PYTHONUNBUFFERED, value: "1"}
+    - {name: VARIANTS, value: "best latest"}
+    - {name: SAVE_ROOT, value: "./Experiments/graspcvae_kl10"}
+    - {name: NAME, value: "graspcvae_kl10"}
+    args:
+    - /bin/bash
+    - -lc
+    - |-
+      set -eo pipefail
+      source /python/.venv/bin/activate
+      bash /workspace/users/dmsgk724/dexgys_baseline/graspcvae/kubeflow/run_eval_metrics.sh

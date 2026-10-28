@@ -1,0 +1,41 @@
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: TrainJob
+metadata:
+  # FULL: GraspTTA ContactNet on DexGYSNet (config/contactnet.yaml) -> Experiments/contactnet
+  name: gys-contactnet-full-eunha
+  namespace: kbm-g-np-postech-a
+spec:
+  runtimeRef:
+    apiGroup: trainer.kubeflow.org
+    kind: TrainingRuntime
+    name: pointgrasp
+  trainer:
+    image: postech-a.kr-central-2.kcr.dev/dmsgk724/grasp-as-you-say:latest
+    numNodes: 1
+    numProcPerNode: 1
+    resourcesPerNode:
+      limits: {cpu: "8", memory: 64Gi, nvidia.com/gpu: "1"}
+    env:
+      - {name: PYTHONUNBUFFERED, value: "1"}
+      - {name: WANDB_API_KEY, valueFrom: {secretKeyRef: {name: wandb-secret-eunha, key: api-key}}}
+      - {name: WANDB_PROJECT, value: "grasp-as-you-say"}
+    command: [/bin/bash]
+    args:
+      - "-lc"
+      - |-
+        set -euo pipefail
+        nvidia-smi -L || true
+        cd /workspace/users/dmsgk724/dexgys_baseline/graspcvae
+        trap 'chown -R 1000:100 Experiments 2>/dev/null || true' EXIT
+        python train.py -t ./config/contactnet.yaml
+        echo "=== DONE ==="
+  podTemplateOverrides:
+    - targetJobs: [{name: node}]
+      metadata: {annotations: {sidecar.istio.io/inject: "false"}}
+      spec:
+        containers:
+          - name: node
+            volumeMounts: [{mountPath: /workspace, name: workspace}, {mountPath: /dev/shm, name: dshm}]
+        volumes:
+          - {name: workspace, persistentVolumeClaim: {claimName: cholab}}
+          - {name: dshm, emptyDir: {medium: Memory, sizeLimit: 32Gi}}
